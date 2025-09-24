@@ -36,7 +36,7 @@ import jakarta.servlet.http.HttpServletResponse;
 @Component
 public class JwtRequestFilter extends OncePerRequestFilter {
 
-    private static final Logger logger = LoggerFactory.getLogger(JwtRequestFilter.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(JwtRequestFilter.class);
 
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
@@ -73,7 +73,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        logger.debug("Processing request: {} {}", request.getMethod(), request.getRequestURI());
+        LOGGER.debug("Processing request: {} {}", request.getMethod(), request.getRequestURI());
 
         try {
             // Extract JWT token from Authorization header
@@ -82,11 +82,11 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             if (jwt != null) {
                 processJwtToken(jwt, request);
             } else {
-                logger.debug("No JWT token found in request");
+                LOGGER.debug("No JWT token found in request");
             }
 
         } catch (Exception e) {
-            logger.error("Error processing JWT token in request filter", e);
+            LOGGER.error("Error processing JWT token in request filter", e);
             // Clear any partial authentication that might have been set
             SecurityContextHolder.clearContext();
         }
@@ -105,17 +105,17 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         final String authorizationHeader = request.getHeader(AUTHORIZATION_HEADER);
 
         if (!StringUtils.hasText(authorizationHeader)) {
-            logger.debug("No Authorization header found");
+            LOGGER.debug("No Authorization header found");
             return null;
         }
 
         if (!authorizationHeader.startsWith(BEARER_PREFIX)) {
-            logger.debug("Authorization header does not start with Bearer prefix");
+            LOGGER.debug("Authorization header does not start with Bearer prefix");
             return null;
         }
 
         if (authorizationHeader.length() <= BEARER_PREFIX_LENGTH) {
-            logger.warn("Authorization header has Bearer prefix but no token");
+            LOGGER.warn("Authorization header has Bearer prefix but no token");
             return null;
         }
 
@@ -134,21 +134,21 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         try {
             // Extract username from JWT token
             username = jwtTokenProvider.getSubjectFromToken(jwt);
-            logger.debug("Extracted username from JWT: {}", username);
+            LOGGER.debug("Extracted username from JWT: {}", username);
 
         } catch (Exception e) {
-            logger.warn("Failed to extract username from JWT token: {}", e.getMessage());
+            LOGGER.warn("Failed to extract username from JWT token: {}", e.getMessage());
             return; // Exit early if token is invalid
         }
 
         // Validate username and check if authentication is not already set
         if (!StringUtils.hasText(username)) {
-            logger.debug("Username extracted from token is null or empty");
+            LOGGER.debug("Username extracted from token is null or empty");
             return;
         }
 
         if (SecurityContextHolder.getContext().getAuthentication() != null) {
-            logger.debug("Authentication already exists in security context");
+            LOGGER.debug("Authentication already exists in security context");
             return;
         }
 
@@ -158,15 +158,15 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
             if (userDetails != null && validateTokenWithUserDetails(jwt, userDetails)) {
                 setAuthenticationContext(userDetails, request);
-                logger.debug("Successfully authenticated user: {}", username);
+                LOGGER.debug("Successfully authenticated user: {}", username);
             } else {
-                logger.debug("Token validation failed for user: {}", username);
+                LOGGER.debug("Token validation failed for user: {}", username);
             }
 
         } catch (UsernameNotFoundException e) {
-            logger.warn("User not found during JWT authentication: {}", username);
+            LOGGER.warn("User not found during JWT authentication: {}", username);
         } catch (Exception e) {
-            logger.error("Unexpected error during JWT authentication for user: {}", username, e);
+            LOGGER.error("Unexpected error during JWT authentication for user: {}", username, e);
         }
     }
 
@@ -180,10 +180,10 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         try {
             return customUserDetailsService.loadUserByUsername(username);
         } catch (UsernameNotFoundException e) {
-            logger.debug("User not found: {}", username);
+            LOGGER.debug("User not found: {}", username);
             throw e; // Re-throw to be handled by caller
         } catch (Exception e) {
-            logger.error("Error loading user details for username: {}", username, e);
+            LOGGER.error("Error loading user details for username: {}", username, e);
             return null;
         }
     }
@@ -199,7 +199,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         try {
             return jwtTokenProvider.validateToken(jwt, userDetails);
         } catch (Exception e) {
-            logger.warn("Token validation failed: {}", e.getMessage());
+            LOGGER.warn("Token validation failed: {}", e.getMessage());
             return false;
         }
     }
@@ -222,10 +222,10 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             // Set authentication in security context
             SecurityContextHolder.getContext().setAuthentication(authToken);
 
-            logger.debug("Authentication context set for user: {}", userDetails.getUsername());
+            LOGGER.debug("Authentication context set for user: {}", userDetails.getUsername());
 
         } catch (Exception e) {
-            logger.error("Error setting authentication context", e);
+            LOGGER.error("Error setting authentication context", e);
             SecurityContextHolder.clearContext();
         }
     }
