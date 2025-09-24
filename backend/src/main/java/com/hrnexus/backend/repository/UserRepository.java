@@ -2,29 +2,30 @@ package com.hrnexus.backend.repository;
 
 import java.util.Optional;
 
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import com.hrnexus.backend.model.User;
 
 /**
- * Repository class for managing User entities. Provides data access operations
- * for user-related queries.
+ * Spring Data JPA repository for managing User entities.
  */
 @Repository
-public class UserRepository {
+public interface UserRepository extends JpaRepository<User, Integer> {
 
     /**
      * Finds a user by their username.
      *
      * @param username the username to search for
      * @return an Optional containing the user if found, empty otherwise
-     * @throws IllegalArgumentException if username is null or empty
      */
-    public Optional<User> findByUsername(String username) {
-        if (username == null || username.trim().isEmpty()) {
-            throw new IllegalArgumentException("Username cannot be null or empty");
-        }
-        return null;
-    }
+    Optional<User> findByUsername(String username);
 
+    /**
+     * Checks if a user exists with the given username.
+     *
+     * @param username the username to check
+     * @return true if a user with the username exists, false otherwise
+     */
+    boolean existsByUsername(String username);
 }
