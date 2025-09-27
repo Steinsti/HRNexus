@@ -2,8 +2,10 @@ package com.hrnexus.backend.security.util;
 
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.PostConstruct;
 import javax.crypto.SecretKey;
@@ -11,6 +13,7 @@ import javax.crypto.SecretKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -31,7 +34,7 @@ public class JwtTokenProvider {
     private static final Logger logger = LoggerFactory.getLogger(JwtTokenProvider.class);
     private static final int MINIMUM_SECRET_LENGTH = 32; // 256 bits
     private static final long MILLISECONDS_MULTIPLIER = 1000L;
-    private static final String BEARER_PREFIX = "Bearer ";
+    private static final String ROLES_CLAIM = "roles";
 
     @Value("${jwt.secret}")
     private String secret;
@@ -69,7 +72,7 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Generates a JWT token for a given UserDetails
+     * Generates a JWT token for a given UserDetails, including roles as claims.
      *
      * @param userDetails the user details to generate token for
      * @return JWT token string
@@ -84,7 +87,15 @@ public class JwtTokenProvider {
             throw new IllegalArgumentException("Username cannot be null or empty");
         }
 
-        return createToken(new HashMap<>(), userDetails.getUsername());
+        // Extract authorities (roles) and map them to a list of strings
+        List<String> roles = userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .collect(Collectors.toList());
+
+        Map<String, Object> claims = new HashMap<>();
+        claims.put(ROLES_CLAIM, roles); // Inject roles into the token payload
+
+        return createToken(claims, userDetails.getUsername());
     }
 
     /**
@@ -104,32 +115,6 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Validates a JWT token against user details
-     *
-     * @param token the JWT token to validate
-     * @param userDetails the user details to validate against
-     * @return true if token is valid, false otherwise
-     */
-    public boolean validateToken(String token, UserDetails userDetails) {
-        if (!StringUtils.hasText(token) || userDetails == null) {
-            return false;
-        }
-
-        // Clean token format (remove Bearer prefix if present)
-        String cleanToken = cleanTokenFormat(token);
-
-        try {
-            String username = getSubjectFromToken(cleanToken);
-            return StringUtils.hasText(username)
-                    && username.equals(userDetails.getUsername())
-                    && !isTokenExpired(cleanToken);
-        } catch (JwtException | IllegalArgumentException e) {
-            logger.debug("Token validation failed: {}", e.getMessage());
-            return false;
-        }
-    }
-
-    /**
      * Extracts the subject (username) from the token
      *
      * @param token the JWT token
@@ -145,76 +130,41 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Cleans token format by removing Bearer prefix if present
+     * Validates a JWT token (signature and expiration)
      *
-     * @param token the raw token string
-     * @return cleaned token without Bearer prefix
+     * Note: This version only validates the token itself, not against
+     * UserDetails. The new JwtRequestFilter will use the claims directly.
+     *
+     * * @param token the JWT token to validate
+     * @return true if token is valid, false otherwise
      */
-    private String cleanTokenFormat(String token) {
-        if (StringUtils.hasText(token) && token.startsWith(BEARER_PREFIX)) {
-            return token.substring(BEARER_PREFIX.length()).trim();
+    public boolean validateToken(String token) {
+        if (!StringUtils.hasText(token)) {
+            return false;
         }
-        return token;
-    }
 
-    /**
-     * Checks if the token has expired
-     */
-    private boolean isTokenExpired(String token) {
+        String cleanToken = cleanTokenFormat(token);
+
         try {
-            Date expirationDate = getExpirationDateFromToken(token);
-            return expirationDate != null && expirationDate.before(new Date());
-        } catch (JwtException e) {
-            logger.debug("Error checking token expiration: {}", e.getMessage());
-            return true; // Consider expired if we can't determine expiration
-        }
-    }
-
-    /**
-     * Extracts expiration date from token
-     */
-    private Date getExpirationDateFromToken(String token) {
-        return getClaimFromToken(token, Claims::getExpiration);
-    }
-
-    /**
-     * Generic method to extract a claim from the token with proper exception
-     * handling
-     */
-    private <T> T getClaimFromToken(String token, Function<Claims, T> claimsResolver) {
-        try {
-            Claims claims = getAllClaimsFromToken(token);
-            if (claims == null) {
-                throw new IllegalArgumentException("Claims cannot be null");
-            }
-            return claimsResolver.apply(claims);
-        } catch (ExpiredJwtException e) {
-            logger.debug("JWT token is expired: {}", e.getMessage());
-            throw e;
-        } catch (UnsupportedJwtException e) {
-            logger.debug("JWT token is unsupported: {}", e.getMessage());
-            throw e;
-        } catch (MalformedJwtException e) {
-            logger.debug("JWT token is malformed: {}", e.getMessage());
-            throw e;
-        } catch (SignatureException e) {
-            logger.debug("JWT signature validation failed: {}", e.getMessage());
-            throw e;
-        } catch (IllegalArgumentException e) {
-            logger.debug("JWT token compact of handler are invalid: {}", e.getMessage());
-            throw e;
+            // Attempt to parse the claims. If successful, the token is valid (not expired, signature OK)
+            getAllClaimsFromToken(cleanToken);
+            return true;
+        } catch (JwtException | IllegalArgumentException e) {
+            logger.debug("Token validation failed: {}", e.getMessage());
+            return false;
         }
     }
 
     /**
      * Extracts all claims from the token with comprehensive exception handling
      */
-    private Claims getAllClaimsFromToken(String token) {
+    public Claims getAllClaimsFromToken(String token) {
+        String cleanToken = cleanTokenFormat(token);
         try {
             return Jwts.parser()
                     .verifyWith(getSigningKey())
                     .build()
-                    .parseSignedClaims(token)
+                    .parseSignedClaims(cleanToken)
                     .getPayload();
         } catch (ExpiredJwtException e) {
             logger.debug("JWT token is expired");
@@ -232,6 +182,30 @@ public class JwtTokenProvider {
             logger.debug("JWT token is invalid");
             throw e;
         }
+    }
+
+    /**
+     * Cleans token format by removing Bearer prefix if present
+     */
+    private String cleanTokenFormat(String token) {
+        final String BEARER_PREFIX = "Bearer ";
+        if (StringUtils.hasText(token) && token.startsWith(BEARER_PREFIX)) {
+            return token.substring(BEARER_PREFIX.length()).trim();
+        }
+        return token;
+    }
+
+    /**
+     * Generic method to extract a claim from the token with proper exception
+     * handling
+     */
+    private <T> T getClaimFromToken(String token, Function<Claims, T> claimsResolver) {
+        // Note: The getSubjectFromToken method should still handle exception propagation
+        Claims claims = getAllClaimsFromToken(token);
+        if (claims == null) {
+            throw new IllegalArgumentException("Claims cannot be null");
+        }
+        return claimsResolver.apply(claims);
     }
 
     /**

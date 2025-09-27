@@ -28,7 +28,7 @@ import jakarta.validation.Valid;
  * REST controller for handling user authentication.
  */
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/v1/auth")
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;

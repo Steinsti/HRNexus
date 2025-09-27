@@ -1,13 +1,15 @@
 package com.hrnexus.backend.security.filter;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -16,6 +18,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import com.hrnexus.backend.security.util.JwtTokenProvider;
 import com.hrnexus.backend.service.CustomUserDetailsService;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,11 +30,11 @@ import jakarta.servlet.http.HttpServletResponse;
  * establish security context for authenticated users.
  *
  * <p>
- * This filter processes the Authorization header, extracts JWT tokens,
- * validates them, and sets up Spring Security authentication context.</p>
+ * **Update:** This filter now authenticates users by reading roles directly
+ * from the JWT payload, enabling stateless and fast authorization checking.</p>
  *
  * @author HRNexus Development Team
- * @version 1.0
+ * @version 1.1
  * @since 1.0
  */
 @Component
@@ -41,13 +45,15 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
     private static final int BEARER_PREFIX_LENGTH = 7;
+    private static final String ROLES_CLAIM = "roles";
 
     private final JwtTokenProvider jwtTokenProvider;
+    // Note: customUserDetailsService is now used only for token validation,
+    // if needed (e.g., checking if user is enabled), but not for fetching roles.
     private final CustomUserDetailsService customUserDetailsService;
 
     /**
-     * Constructor-based dependency injection for better testability and
-     * immutability.
+     * Constructor-based dependency injection.
      *
      * @param jwtTokenProvider the JWT token provider service
      * @param customUserDetailsService the custom user details service
@@ -56,18 +62,12 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             CustomUserDetailsService customUserDetailsService) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.customUserDetailsService = customUserDetailsService;
-        logger.info("JwtRequestFilter initialized successfully");
+        LOGGER.info("JwtRequestFilter initialized successfully");
     }
 
     /**
      * Filters incoming requests to validate JWT tokens and establish security
      * context.
-     *
-     * @param request the HTTP servlet request
-     * @param response the HTTP servlet response
-     * @param filterChain the filter chain
-     * @throws ServletException if a servlet error occurs
-     * @throws IOException if an I/O error occurs
      */
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -76,145 +76,98 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         LOGGER.debug("Processing request: {} {}", request.getMethod(), request.getRequestURI());
 
         try {
-            // Extract JWT token from Authorization header
             String jwt = extractJwtFromRequest(request);
 
-            if (jwt != null) {
+            if (jwt != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 processJwtToken(jwt, request);
-            } else {
+            } else if (jwt == null) {
                 LOGGER.debug("No JWT token found in request");
             }
 
         } catch (Exception e) {
-            LOGGER.error("Error processing JWT token in request filter", e);
-            // Clear any partial authentication that might have been set
+            LOGGER.error("Error processing JWT token in request filter. Clearing context.", e);
             SecurityContextHolder.clearContext();
         }
 
-        // Continue with the filter chain
         filterChain.doFilter(request, response);
     }
 
     /**
      * Extracts JWT token from the Authorization header.
-     *
-     * @param request the HTTP servlet request
-     * @return the JWT token string, or null if not found or invalid format
      */
     private String extractJwtFromRequest(HttpServletRequest request) {
         final String authorizationHeader = request.getHeader(AUTHORIZATION_HEADER);
 
-        if (!StringUtils.hasText(authorizationHeader)) {
-            LOGGER.debug("No Authorization header found");
-            return null;
+        if (StringUtils.hasText(authorizationHeader) && authorizationHeader.startsWith(BEARER_PREFIX)) {
+            if (authorizationHeader.length() > BEARER_PREFIX_LENGTH) {
+                return authorizationHeader.substring(BEARER_PREFIX_LENGTH).trim();
+            } else {
+                LOGGER.warn("Authorization header has Bearer prefix but no token");
+            }
         }
-
-        if (!authorizationHeader.startsWith(BEARER_PREFIX)) {
-            LOGGER.debug("Authorization header does not start with Bearer prefix");
-            return null;
-        }
-
-        if (authorizationHeader.length() <= BEARER_PREFIX_LENGTH) {
-            LOGGER.warn("Authorization header has Bearer prefix but no token");
-            return null;
-        }
-
-        return authorizationHeader.substring(BEARER_PREFIX_LENGTH);
+        return null;
     }
 
     /**
      * Processes the JWT token and establishes security context if valid.
      *
-     * @param jwt the JWT token to process
+     * This method now reads authentication data directly from the token claims.
+     *
+     * * @param jwt the JWT token to process
      * @param request the HTTP servlet request
      */
     private void processJwtToken(String jwt, HttpServletRequest request) {
+        Claims claims;
         String username;
 
         try {
-            // Extract username from JWT token
-            username = jwtTokenProvider.getSubjectFromToken(jwt);
+            claims = jwtTokenProvider.getAllClaimsFromToken(jwt);
+            username = claims.getSubject();
+
             LOGGER.debug("Extracted username from JWT: {}", username);
 
-        } catch (Exception e) {
-            LOGGER.warn("Failed to extract username from JWT token: {}", e.getMessage());
-            return; // Exit early if token is invalid
+        } catch (JwtException e) {
+            LOGGER.warn("Failed to process JWT claims (expired or invalid signature): {}", e.getMessage());
+            return; // Exit if token is invalid or expired
         }
 
-        // Validate username and check if authentication is not already set
         if (!StringUtils.hasText(username)) {
             LOGGER.debug("Username extracted from token is null or empty");
             return;
         }
 
-        if (SecurityContextHolder.getContext().getAuthentication() != null) {
-            LOGGER.debug("Authentication already exists in security context");
-            return;
+        // --- Core Change: Read Roles from Claims ---
+        @SuppressWarnings("unchecked")
+        List<String> roles = claims.get(ROLES_CLAIM, List.class);
+
+        if (roles == null || roles.isEmpty()) {
+            LOGGER.warn("No roles found in JWT token for user: {}", username);
+            // Even if no roles, we authenticate, but authorization (403) will fail later
+            // unless the endpoint is public.
         }
 
-        // Load user details and validate token
-        try {
-            UserDetails userDetails = loadUserDetails(username);
+        // Convert string roles to Spring Security GrantedAuthority objects
+        List<GrantedAuthority> authorities = roles.stream()
+                .map(role -> new SimpleGrantedAuthority(role.startsWith("ROLE_") ? role : "ROLE_" + role))
+                .collect(Collectors.toList());
 
-            if (userDetails != null && validateTokenWithUserDetails(jwt, userDetails)) {
-                setAuthenticationContext(userDetails, request);
-                LOGGER.debug("Successfully authenticated user: {}", username);
-            } else {
-                LOGGER.debug("Token validation failed for user: {}", username);
-            }
-
-        } catch (UsernameNotFoundException e) {
-            LOGGER.warn("User not found during JWT authentication: {}", username);
-        } catch (Exception e) {
-            LOGGER.error("Unexpected error during JWT authentication for user: {}", username, e);
-        }
-    }
-
-    /**
-     * Loads user details for the given username.
-     *
-     * @param username the username to load details for
-     * @return UserDetails object or null if loading fails
-     */
-    private UserDetails loadUserDetails(String username) {
-        try {
-            return customUserDetailsService.loadUserByUsername(username);
-        } catch (UsernameNotFoundException e) {
-            LOGGER.debug("User not found: {}", username);
-            throw e; // Re-throw to be handled by caller
-        } catch (Exception e) {
-            LOGGER.error("Error loading user details for username: {}", username, e);
-            return null;
-        }
-    }
-
-    /**
-     * Validates the JWT token against user details.
-     *
-     * @param jwt the JWT token
-     * @param userDetails the user details
-     * @return true if token is valid, false otherwise
-     */
-    private boolean validateTokenWithUserDetails(String jwt, UserDetails userDetails) {
-        try {
-            return jwtTokenProvider.validateToken(jwt, userDetails);
-        } catch (Exception e) {
-            LOGGER.warn("Token validation failed: {}", e.getMessage());
-            return false;
-        }
+        // Use the username and authorities from the token to set the context
+        setAuthenticationContext(username, authorities, request);
     }
 
     /**
      * Sets the authentication context in Spring Security.
      *
-     * @param userDetails the authenticated user details
+     * @param username the authenticated username
+     * @param authorities the granted authorities (roles)
      * @param request the HTTP servlet request
      */
-    private void setAuthenticationContext(UserDetails userDetails, HttpServletRequest request) {
+    private void setAuthenticationContext(String username, List<GrantedAuthority> authorities,
+            HttpServletRequest request) {
         try {
-            // Create authentication token
+            // Create authentication token directly from token claims
             UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                    userDetails, null, userDetails.getAuthorities());
+                    username, null, authorities); // Username is used as the principal, password is null
 
             // Set authentication details
             authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
@@ -222,7 +175,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             // Set authentication in security context
             SecurityContextHolder.getContext().setAuthentication(authToken);
 
-            LOGGER.debug("Authentication context set for user: {}", userDetails.getUsername());
+            LOGGER.debug("Authentication context set for user: {} with authorities: {}", username, authorities);
 
         } catch (Exception e) {
             LOGGER.error("Error setting authentication context", e);
@@ -231,18 +184,14 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Determines if the filter should be applied to the given request. Override
-     * this method to skip filtering for certain paths.
-     *
-     * @param request the HTTP servlet request
-     * @return true if the filter should not be applied, false otherwise
+     * Determines if the filter should be applied to the given request.
      */
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
 
         // Skip JWT validation for public endpoints
-        return path.startsWith("/api/auth/")
+        return path.startsWith("/api/v1/auth/")
                 || path.startsWith("/api/public/")
                 || path.equals("/health")
                 || path.equals("/actuator/health");
