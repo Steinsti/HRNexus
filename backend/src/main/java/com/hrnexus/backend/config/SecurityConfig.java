@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import com.hrnexus.backend.security.JwtAuthenticationEntryPoint;
 import com.hrnexus.backend.security.filter.JwtRequestFilter;
 
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
     private final JwtRequestFilter jwtRequestFilter;
 
     @Bean
@@ -36,10 +38,13 @@ public class SecurityConfig {
         http
                 // Disable CSRF for stateless REST APIs
                 .csrf(csrf -> csrf.disable())
+                // Set the custom entry point to handle 401 Unauthorized errors
+                .exceptionHandling(handling -> handling.authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 // Set session management to stateless
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // Define authorization rules for endpoints
                 .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/error").permitAll()
                 .requestMatchers("/api/v1/auth/**").permitAll() // Login endpoint is public
                 .requestMatchers("/api/v1/employees/**").authenticated() // Employee endpoints require authentication
                 .anyRequest().authenticated()

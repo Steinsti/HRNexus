@@ -1,8 +1,12 @@
 package com.hrnexus.backend.controller;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,7 +35,7 @@ public class EmployeeController {
      * Endpoint to create a new employee. Accessible only to users with the
      * HR_MANAGER role.
      *
-     * * @param request The employee details.
+     * @param request The employee details.
      * @return A success message response.
      */
     @PostMapping("/register")
@@ -43,6 +47,33 @@ public class EmployeeController {
                 new MessageResponse("Employee created successfully with ID: " + newEmployee.getEmployeeId()),
                 HttpStatus.CREATED
         );
+    }
+
+    /**
+     * Endpoint to retrieve a list of all employees. Accessible only to users
+     * with the HR_MANAGER role.
+     *
+     * @return A ResponseEntity containing a list of all Employee objects.
+     */
+    @GetMapping
+    @PreAuthorize("hasRole('HR_MANAGER')")
+    public ResponseEntity<List<Employee>> getAllEmployees() {
+        List<Employee> employees = employeeService.getAllEmployees();
+        return new ResponseEntity<>(employees, HttpStatus.OK);
+    }
+
+    /**
+     * Endpoint to retrieve a single employee by their ID Card Number.
+     * Accessible only to users with the HR_MANAGER role.
+     *
+     * @param idCardNo The ID card number of the employee.
+     * @return A ResponseEntity containing the Employee object.
+     */
+    @GetMapping("/{idCardNo}")
+    @PreAuthorize("hasRole('HR_MANAGER')")
+    public ResponseEntity<Employee> getEmployeeByIdCardNo(@PathVariable Long idCardNo) {
+        Employee employee = employeeService.getEmployeeByIdCardNo(idCardNo);
+        return new ResponseEntity<>(employee, HttpStatus.OK);
     }
 
 }

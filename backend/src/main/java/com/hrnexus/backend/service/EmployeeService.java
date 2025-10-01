@@ -1,9 +1,15 @@
 package com.hrnexus.backend.service;
 
-import com.hrnexus.backend.model.Employee;
+import java.util.List;
+
 import org.springframework.stereotype.Service;
+
+import com.hrnexus.backend.exception.IdCardAlreadyExistsException;
+import com.hrnexus.backend.exception.ResourceNotFoundException;
+import com.hrnexus.backend.model.Employee;
 import com.hrnexus.backend.payload.request.EmployeeRequest;
 import com.hrnexus.backend.repository.EmployeeRepository;
+
 import lombok.RequiredArgsConstructor;
 
 /**
@@ -26,8 +32,7 @@ public class EmployeeService {
     public Employee createEmployee(EmployeeRequest request) {
         // Check if employee with this Id no already exists
         if (employeeRepository.existsByIdCardNo(request.getIdCardNo())) {
-            throw new RuntimeException("An employee with the id no " + request.getIdCardNo() + " already exists."
-            );
+            throw new IdCardAlreadyExistsException(request.getIdCardNo());
         }
 
         // Convert request DTO to Employee entity
@@ -47,5 +52,26 @@ public class EmployeeService {
 
         return employeeRepository.save(employee);
 
+    }
+
+    /**
+     * Retrieves all employees from the database.
+     *
+     * @return A list of all Employee entities.
+     */
+    public List<Employee> getAllEmployees() {
+        return employeeRepository.findAll();
+    }
+
+    /**
+     * Retrieves a single employee by their ID card number.
+     *
+     * @param idCardNo The ID card number of the employee to retrieve.
+     * @return The Employee entity.
+     * @throws ResourceNotFoundException if the employee is not found.
+     */
+    public Employee getEmployeeByIdCardNo(Long idCardNo) {
+        return employeeRepository.findByIdCardNo(idCardNo)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee not found with ID card number: " + idCardNo));
     }
 }
