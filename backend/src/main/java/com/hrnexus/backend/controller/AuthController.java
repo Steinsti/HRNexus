@@ -18,6 +18,7 @@ import com.hrnexus.backend.payload.request.LoginRequest;
 import com.hrnexus.backend.payload.request.RegisterRequest;
 import com.hrnexus.backend.payload.response.JwtResponse;
 import com.hrnexus.backend.payload.response.RegisterResponse;
+import com.hrnexus.backend.repository.EmployeeRepository;
 import com.hrnexus.backend.repository.UserRepository;
 import com.hrnexus.backend.security.util.JwtTokenProvider;
 import com.hrnexus.backend.service.CustomUserDetailsService;
@@ -36,18 +37,21 @@ public class AuthController {
     private final CustomUserDetailsService customUserDetailsService;
     private final PasswordEncoder passwordEncoder;
     private final UserRepository userRepository;
+    private final EmployeeRepository employeeRepository;
 
     public AuthController(
             AuthenticationManager authenticationManager,
             JwtTokenProvider jwtTokenProvider,
             CustomUserDetailsService customUserDetailsService,
             PasswordEncoder passwordEncoder,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            EmployeeRepository employeeRepository) {
         this.authenticationManager = authenticationManager;
         this.jwtTokenProvider = jwtTokenProvider;
         this.customUserDetailsService = customUserDetailsService;
         this.passwordEncoder = passwordEncoder;
         this.userRepository = userRepository;
+        this.employeeRepository = employeeRepository;
     }
 
     /**
@@ -67,13 +71,26 @@ public class AuthController {
         // Load the full UserDetails for token generation
         UserDetails userDetails = customUserDetailsService.loadUserByUsername(loginRequest.getUsername());
 
-        // Generate the JWT token
         String jwt = jwtTokenProvider.generateToken(userDetails);
 
         // Return the token in a custom response object
         return ResponseEntity.ok(new JwtResponse(jwt));
     }
 
+    /**
+     * Registers a new employee account.
+     *
+     * Handles POST /register with a validated request body. Trims the username,
+     * rejects existing usernames with 409, and denies non-employee emails with
+     * 403. On success, encodes the password, assigns the EMPLOYEE role,
+     * persists the user, and returns 201 with a RegisterResponse (id, username,
+     * role).
+     *
+     * @param request validated registration data from the request body
+     * @return ResponseEntity with: - 201 Created and RegisterResponse on
+     * success - 409 Conflict if the username already exists - 403 Forbidden if
+     * registration is not allowed
+     */
     @PostMapping("/register")
     public ResponseEntity<?> registerUser(@Valid @RequestBody RegisterRequest request) {
         String username = request.getUsername().trim();
@@ -81,7 +98,13 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Username already exists");
         }
 
-        Roles role = request.getRole() != null ? request.getRole() : Roles.EMPLOYEE;
+        // Validate that the user is an employee by email 
+        boolean isEmployee = employeeRepository.existsByEmail(username);
+        if (!isEmployee) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Registration allowed only for employees");
+        }
+
+        Roles role = Roles.EMPLOYEE;
 
         User user = User.builder()
                 .username(username)

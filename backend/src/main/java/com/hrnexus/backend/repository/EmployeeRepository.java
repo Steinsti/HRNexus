@@ -22,6 +22,14 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     boolean existsByIdCardNo(Long id);
 
     /**
+     * Checks if an employee with the given email already exists.
+     *
+     * @param email The email to check.
+     * @return true if an employee exists with this email, false otherwise.
+     */
+    boolean existsByEmail(String email);
+
+    /**
      * Retrieves an employee by their unique ID card number.
      *
      * @param idCardNo The employee's ID card number.

@@ -1,7 +1,6 @@
 package com.hrnexus.backend.payload.request;
 
-import com.hrnexus.backend.enums.Roles;
-
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -10,13 +9,11 @@ import lombok.Data;
 public class RegisterRequest {
 
     @NotBlank
+    @Email(message = "Email should be valid")
     @Size(min = 3, max = 50)
     private String username;
 
     @NotBlank
     @Size(min = 6, max = 100)
     private String password;
-
-    // Optional: allow client to set a role; default will be EMPLOYEE if null
-    private Roles role;
 }
