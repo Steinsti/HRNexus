@@ -16,7 +16,7 @@ public class IdCardAlreadyExistsException extends RuntimeException {
      *
      * @param idCardNo The ID card number that already exists.
      */
-    public IdCardAlreadyExistsException(Long idCardNo) {
+    public IdCardAlreadyExistsException(String idCardNo) {
         super("An employee with the ID card number " + idCardNo + " already exists.");
     }
 }

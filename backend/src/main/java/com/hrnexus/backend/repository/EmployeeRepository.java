@@ -19,7 +19,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
      * @param IdCardNo The id card no to check.
      * @return true if an employee exists with this id no, false otherwise.
      */
-    boolean existsByIdCardNo(Long id);
+    boolean existsByIdCardNo(String id);
 
     /**
      * Checks if an employee with the given email already exists.
@@ -29,6 +29,14 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
      */
     boolean existsByEmail(String email);
 
+     /**
+     * Checks if an Employee with the given unique employee ID (e.g., EMP-001) already exists.
+     * Useful for enforcing the unique constraint on the natural key.
+     * @param employeeId The internal unique employee identifier.
+     * @return true if an employee with the ID exists, false otherwise.
+     */
+    boolean existsByEmployeeId(String employeeId);
+
     /**
      * Retrieves an employee by their unique ID card number.
      *
@@ -36,6 +44,6 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
      * @return An Optional containing the Employee entity if found, or an empty
      * Optional otherwise.
      */
-    Optional<Employee> findByIdCardNo(Long idCardNo);
+    Optional<Employee> findByIdCardNo(String idCardNo);
 
 }

@@ -3,8 +3,10 @@ package com.hrnexus.backend.exception;
 import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -12,22 +14,118 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import com.hrnexus.backend.payload.response.ErrorResponse;
 
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * Global Exception Handler using @ControllerAdvice to manage application-wide
- * exceptions. This ensures consistent and structured error responses (e.g., 404
- * NOT FOUND) with a detailed body.
+ * exceptions. This ensures consistent and structured error responses.
  */
 @ControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
 
     /**
-     * Handles ResourceNotFoundException and returns a 404 NOT FOUND status with
-     * a structured ErrorResponse body.
+     * Handles request body deserialization exceptions (JSON parsing errors or
+     * missing body) and returns a 400 Bad Request, preventing the leak of
+     * internal Java details.
+     *
+     * @param ex The HttpMessageNotReadableException instance.
+     * @param request The current web request.
+     * @return A ResponseEntity containing the custom ErrorResponse and HTTP 400
+     * status.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadableException(
+            HttpMessageNotReadableException ex,
+            WebRequest request) {
+
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        String userFriendlyMessage;
+        String detailedMessage;
+
+        Throwable cause = ex.getCause();
+
+        if (cause == null) {
+            // Required request body is missing (empty payload)
+            userFriendlyMessage = "Required JSON request body is missing.";
+            detailedMessage = "The request payload was empty. Please ensure a valid JSON body is sent.";
+        } else if (cause instanceof InvalidFormatException ife) {
+            // Data type mismatch
+            String fieldPath = ife.getPath().stream()
+                    .map(ref -> ref.getFieldName() != null ? ref.getFieldName() : ("[" + ref.getIndex() + "]"))
+                    .collect(Collectors.joining("."));
+
+            detailedMessage = String.format(
+                    "Invalid value '%s' provided for field '%s'. Expected type was '%s'.",
+                    ife.getValue(),
+                    fieldPath,
+                    ife.getTargetType() != null ? ife.getTargetType().getSimpleName() : "unknown"
+            );
+            userFriendlyMessage = "Data Type Mismatch in Request Body";
+        } else if (cause instanceof UnrecognizedPropertyException upe) {
+            // Unknown field
+            detailedMessage = String.format(
+                    "Unrecognized field '%s'. Check your field names.",
+                    upe.getPropertyName()
+            );
+            userFriendlyMessage = "Unknown Field in Request Body";
+        } else {
+            // Other general parsing failure (e.g., malformed syntax)
+            userFriendlyMessage = "The request body is invalid or malformed.";
+            // Use a generic, safe message instead of ex.getMessage() to prevent leaks
+            detailedMessage = "General JSON syntax or format error. Check for malformed JSON structure.";
+            log.error("JSON Deserialization Failure: {}", ex.getMessage());
+        }
+
+        log.warn("Bad Request (400) - Deserialization Error: {}", detailedMessage);
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                status.value(),
+                status.getReasonPhrase(),
+                userFriendlyMessage + ": " + detailedMessage,
+                request.getDescription(false).replace("uri=", "")
+        );
+
+        return new ResponseEntity<>(errorResponse, status);
+    }
+
+    /**
+     * Handles Data Access exceptions thrown when a required foreign key ID is
+     * null. Returns a 400 Bad Request.
+     *
+     * @param ex The InvalidDataAccessApiUsageException instance.
+     * @param request The current web request.
+     * @return A ResponseEntity containing the custom ErrorResponse and HTTP 400
+     * status.
+     */
+    @ExceptionHandler(InvalidDataAccessApiUsageException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidDataAccessApiUsageException(
+            InvalidDataAccessApiUsageException ex,
+            WebRequest request) {
+
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        String message = ex.getMessage() != null && ex.getMessage().contains("id must not be null")
+                ? "Missing required relationship ID in request. A foreign key (e.g., Department ID, Job Title ID) was null. Please ensure all required IDs are present."
+                : "Invalid data access argument provided.";
+
+        log.warn("Bad Request (400) - Missing Required ID: {}", message, ex);
+
+        ErrorResponse errorResponse = new ErrorResponse(
+                status.value(),
+                status.getReasonPhrase(),
+                message,
+                request.getDescription(false).replace("uri=", "")
+        );
+
+        return new ResponseEntity<>(errorResponse, status);
+    }
+
+    /**
+     * Handles ResourceNotFoundException and returns a 404 NOT FOUND status.
      *
      * @param ex The ResourceNotFoundException instance.
      * @param request The current web request.
@@ -44,7 +142,7 @@ public class GlobalExceptionHandler {
         ErrorResponse errorResponse = new ErrorResponse(
                 status.value(),
                 status.getReasonPhrase(),
-                ex.getMessage(), // This is the descriptive error message (e.g., "Employee not found...")
+                ex.getMessage(), // This is the descriptive error message
                 request.getDescription(false).replace("uri=", "") // Extracts the path
         );
 
@@ -52,18 +150,18 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handles validation exceptions (e.g., @Valid fails on DTOs) and returns a
-     * 400 Bad Request. Aggregates all field errors into a comprehensive
-     * message.
+     * Handles validation exceptions (@Valid fails on DTOs) and returns a 400
+     * Bad Request. Aggregates all field errors into a single message.
      *
      * @param ex The MethodArgumentNotValidException instance.
+     * @param request The current web request.
      * @return A ResponseEntity containing the custom ErrorResponse and HTTP 400
      * status.
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationExceptions(
             MethodArgumentNotValidException ex,
-            WebRequest request) { // Added WebRequest to access path information
+            WebRequest request) {
 
         HttpStatus status = HttpStatus.BAD_REQUEST;
 
@@ -72,7 +170,6 @@ public class GlobalExceptionHandler {
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .collect(Collectors.joining("; "));
 
-        // Re-added the path argument to match the required 4-argument constructor.
         ErrorResponse errorResponse = new ErrorResponse(
                 status.value(),
                 status.getReasonPhrase(),
@@ -85,21 +182,20 @@ public class GlobalExceptionHandler {
 
     /**
      * Handles Spring Security AccessDeniedException and returns a 403 Forbidden
-     * status. This covers authorization failures (user logged in but lacks the
-     * required role).
+     * status.
      *
      * @param ex The AccessDeniedException instance.
+     * @param request The current web request.
      * @return A ResponseEntity containing the custom ErrorResponse and HTTP 403
      * status.
      */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDeniedException(
             AccessDeniedException ex,
-            WebRequest request) { // Added WebRequest to access path information
+            WebRequest request) {
 
         HttpStatus status = HttpStatus.FORBIDDEN;
 
-        // Re-added the path argument to match the required 4-argument constructor.
         ErrorResponse errorResponse = new ErrorResponse(
                 status.value(),
                 status.getReasonPhrase(),
@@ -111,7 +207,8 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handles custom business rule exceptions like duplicate ID card number,
+     * Handles custom business rule exceptions (e.g.,
+     * IdCardAlreadyExistsException),
      * mapping them to 409 Conflict.
      *
      * @param ex The IdCardAlreadyExistsException instance.
@@ -140,8 +237,8 @@ public class GlobalExceptionHandler {
 
     /**
      * Handles database unique constraint violations
-     * (DataIntegrityViolationException) and returns a 409 Conflict status. It
-     * attempts to extract a user-friendly message from the root cause.
+     * (DataIntegrityViolationException) and returns a 409 Conflict status with
+     * a user-friendly message.
      *
      * @param ex The DataIntegrityViolationException instance.
      * @param request The current web request.
@@ -160,7 +257,6 @@ public class GlobalExceptionHandler {
 
         if (rootCauseMessage != null) {
             // Attempt to make the message more specific based on the PostgreSQL error format
-            // e.g., Detail: Key (email)=(Jake.dalson@example.com) already exists.
             if (rootCauseMessage.contains("duplicate key value violates unique constraint")) {
                 try {
                     String detail = rootCauseMessage.substring(rootCauseMessage.indexOf("Detail: Key ("));
@@ -168,7 +264,6 @@ public class GlobalExceptionHandler {
                     userFriendlyMessage = detail.replace("Detail: ", "Conflict: ");
                 } catch (Exception e) {
                     // Fall back to generic message if parsing fails
-                    // Log the root cause here if necessary
                 }
             } else if (rootCauseMessage.contains("Duplicate entry")) {
                 // Handles MySQL/MariaDB unique constraint message format
@@ -187,13 +282,10 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handles exceptions where Spring MVC cannot find a resource
-     * (controller/endpoint) for the requested URI, typically resulting in a 404
-     * Not Found error. This handler ensures unmapped requests return a
-     * structured ErrorResponse.
+     * Handles exceptions where Spring MVC cannot find an endpoint for the
+     * requested URI, returning a structured 404 Not Found error.
      *
-     * @param ex The NoResourceFoundException instance, containing the path that
-     * was not found.
+     * @param ex The NoResourceFoundException instance.
      * @param request The current web request context.
      * @return A ResponseEntity containing the custom ErrorResponse and HTTP 404
      * NOT FOUND status.
@@ -215,8 +307,7 @@ public class GlobalExceptionHandler {
 
     /**
      * Handles all other unhandled exceptions (the catch-all) and returns a 500
-     * Internal Server Error status. This is crucial for logging the full stack
-     * trace of unexpected errors.
+     * Internal Server Error status. Crucial for logging the full stack trace.
      *
      * @param ex The generic Exception instance.
      * @param request The current web request.
@@ -229,8 +320,7 @@ public class GlobalExceptionHandler {
         HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
 
         // CRUCIAL: Log the full exception with the stack trace using the two-argument
-        // log.error(message, throwable) method. This ensures the full trace is visible 
-        // in server logs for debugging purposes.
+        // log.error(message, throwable) method.
         log.error("Unhandled Internal Server Error (500): {}", ex.getMessage(), ex);
 
         ErrorResponse errorResponse = new ErrorResponse(

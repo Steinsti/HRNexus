@@ -71,7 +71,7 @@ public class EmployeeController {
      */
     @GetMapping("/{idCardNo}")
     @PreAuthorize("hasRole('HR_MANAGER')")
-    public ResponseEntity<Employee> getEmployeeByIdCardNo(@PathVariable Long idCardNo) {
+    public ResponseEntity<Employee> getEmployeeByIdCardNo(@PathVariable String idCardNo) {
         Employee employee = employeeService.getEmployeeByIdCardNo(idCardNo);
         return new ResponseEntity<>(employee, HttpStatus.OK);
     }

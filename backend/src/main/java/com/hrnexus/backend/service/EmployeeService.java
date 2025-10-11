@@ -1,14 +1,21 @@
 package com.hrnexus.backend.service;
 
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import com.hrnexus.backend.enums.EmploymentStatus;
 import com.hrnexus.backend.exception.IdCardAlreadyExistsException;
 import com.hrnexus.backend.exception.ResourceNotFoundException;
+import com.hrnexus.backend.model.Department;
 import com.hrnexus.backend.model.Employee;
+import com.hrnexus.backend.model.JobTitle;
 import com.hrnexus.backend.payload.request.EmployeeRequest;
+import com.hrnexus.backend.repository.DepartmentRepository;
 import com.hrnexus.backend.repository.EmployeeRepository;
+import com.hrnexus.backend.repository.JobTitleRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -20,19 +27,43 @@ import lombok.RequiredArgsConstructor;
 public class EmployeeService {
 
     private final EmployeeRepository employeeRepository;
+    private final DepartmentRepository departmentRepository;
+    private final JobTitleRepository jobTitleRepository;
 
     /**
      * Creates and saves a new employee based on the request DTO.
      *
      * @param request The employee data transfer object.
      * @return The saved Employee entity.
-     * @throws RuntimeException if an employee with the given email already
-     * exists.
+     * @throws IdCardAlreadyExistsException if an employee with the given ID
+     * card number already exists.
+     * @throws ResourceNotFoundException if Department, Job Title, or Manager
+     * IDs are invalid.
      */
+    @Transactional
     public Employee createEmployee(EmployeeRequest request) {
-        // Check if employee with this Id no already exists
+
         if (employeeRepository.existsByIdCardNo(request.getIdCardNo())) {
             throw new IdCardAlreadyExistsException(request.getIdCardNo());
+        }
+
+        Department department = departmentRepository.findById(request.getDepartmentId())
+                .orElseThrow(() -> new ResourceNotFoundException("Department not found with ID: " + request.getDepartmentId()));
+
+        JobTitle jobTitle = jobTitleRepository.findById(request.getJobTitleId())
+                .orElseThrow(() -> new ResourceNotFoundException("Job Title not found with ID: " + request.getJobTitleId()));
+
+        Employee manager = null;
+        if (request.getManagerId() != null) {
+            manager = employeeRepository.findById(request.getManagerId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Manager employee not found with ID: " + request.getManagerId()));
+        }
+
+        EmploymentStatus status;
+        try {
+            status = EmploymentStatus.valueOf(request.getEmploymentStatus().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException | NullPointerException ex) {
+            throw new ResourceNotFoundException("Invalid employment status: " + request.getEmploymentStatus());
         }
 
         // Convert request DTO to Employee entity
@@ -44,10 +75,12 @@ public class EmployeeService {
                 .idCardNo(request.getIdCardNo())
                 .email(request.getEmail())
                 .phoneNumber(request.getPhoneNumber())
-                .position(request.getPosition())
-                .department(request.getDepartment())
+                .department(department)
+                .jobTitle(jobTitle)
+                .manager(manager)
                 .hireDate(request.getHireDate())
                 .dateOfBirth(request.getDateOfBirth())
+                .employmentStatus(status)
                 .build();
 
         return employeeRepository.save(employee);
@@ -70,7 +103,7 @@ public class EmployeeService {
      * @return The Employee entity.
      * @throws ResourceNotFoundException if the employee is not found.
      */
-    public Employee getEmployeeByIdCardNo(Long idCardNo) {
+    public Employee getEmployeeByIdCardNo(String idCardNo) {
         return employeeRepository.findByIdCardNo(idCardNo)
                 .orElseThrow(() -> new ResourceNotFoundException("Employee not found with ID card number: " + idCardNo));
     }
