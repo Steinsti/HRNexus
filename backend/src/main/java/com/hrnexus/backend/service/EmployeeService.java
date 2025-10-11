@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.hrnexus.backend.model.Employee;
 import com.hrnexus.backend.payload.request.EmployeeRequest;
+import com.hrnexus.backend.payload.request.EmployeeUpdateRequest;
 
 /**
  * Interface defining the contract for Employee business logic operations. This
@@ -18,6 +19,15 @@ public interface EmployeeService {
      * @return The saved Employee entity.
      */
     Employee createEmployee(EmployeeRequest request);
+
+    /**
+     * Updates an existing employee by their internal primary key ID.
+     *
+     * @param id The primary key ID of the employee to update.
+     * @param request The updated employee data transfer object.
+     * @return The saved (updated) Employee entity.
+     */
+    Employee updateEmployee(Long id, EmployeeUpdateRequest request);
 
     /**
      * Retrieves all employees from the database.
@@ -41,4 +51,11 @@ public interface EmployeeService {
      * @return The Employee entity.
      */
     Employee getEmployeeById(Long id);
+
+    /**
+     * Deletes an employee by their internal primary key ID.
+     *
+     * @param id The primary key ID of the employee to delete.
+     */
+    void deleteEmployee(Long id);
 }

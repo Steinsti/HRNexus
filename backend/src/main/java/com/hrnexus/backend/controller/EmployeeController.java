@@ -5,15 +5,18 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.hrnexus.backend.model.Employee;
 import com.hrnexus.backend.payload.request.EmployeeRequest;
+import com.hrnexus.backend.payload.request.EmployeeUpdateRequest;
 import com.hrnexus.backend.payload.response.MessageResponse;
 import com.hrnexus.backend.service.EmployeeService;
 
@@ -60,6 +63,42 @@ public class EmployeeController {
     public ResponseEntity<List<Employee>> getAllEmployees() {
         List<Employee> employees = employeeService.getAllEmployees();
         return new ResponseEntity<>(employees, HttpStatus.OK);
+    }
+
+    /**
+     * Endpoint to update an existing employee by their internal ID (Primary
+     * Key). Accessible only to users with the HR_MANAGER role.
+     *
+     * @param id The internal primary key ID of the employee to update.
+     * @param request The updated employee details.
+     * @return A success message response.
+     */
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('HR_MANAGER')")
+    public ResponseEntity<MessageResponse> updateEmployee(
+            @PathVariable Long id,
+            @Valid @RequestBody EmployeeUpdateRequest request) {
+
+        Employee updatedEmployee = employeeService.updateEmployee(id, request);
+
+        return new ResponseEntity<>(
+                new MessageResponse("Employee updated successfully. Employee ID: " + updatedEmployee.getEmployeeId()),
+                HttpStatus.OK
+        );
+    }
+
+    /**
+     * Endpoint to delete an employee by their internal ID (Primary Key).
+     * Accessible only to users with the HR_MANAGER role.
+     *
+     * @param id The internal primary key ID of the employee to delete.
+     * @return A 204 No Content response upon successful deletion.
+     */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('HR_MANAGER')")
+    public ResponseEntity<Void> deleteEmployee(@PathVariable Long id) {
+        employeeService.deleteEmployee(id);
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
     /**

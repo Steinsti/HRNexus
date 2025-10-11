@@ -46,4 +46,13 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
      */
     Optional<Employee> findByIdCardNo(String idCardNo);
 
+    /**
+     * Retrieves an employee associated with the specified email address.
+     *
+     * @param email the email address to search for
+     * @return An Optional containing the Employee entity if found, or an empty
+     * Optional otherwise.
+     */
+    Optional<Employee> findByEmail(String email);
+
 }
