@@ -69,10 +69,24 @@ public class EmployeeController {
      * @param idCardNo The ID card number of the employee.
      * @return A ResponseEntity containing the Employee object.
      */
-    @GetMapping("/{idCardNo}")
+    @GetMapping("/card/{idCardNo}") // Modified path to prevent conflict with primary ID
     @PreAuthorize("hasRole('HR_MANAGER')")
     public ResponseEntity<Employee> getEmployeeByIdCardNo(@PathVariable String idCardNo) {
         Employee employee = employeeService.getEmployeeByIdCardNo(idCardNo);
+        return new ResponseEntity<>(employee, HttpStatus.OK);
+    }
+
+    /**
+     * Endpoint to retrieve a single employee by their internal database ID
+     * (Primary Key). Accessible only to users with the HR_MANAGER role.
+     *
+     * @param id The internal primary key ID of the employee.
+     * @return A ResponseEntity containing the Employee object.
+     */
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('HR_MANAGER')")
+    public ResponseEntity<Employee> getEmployeeById(@PathVariable Long id) {
+        Employee employee = employeeService.getEmployeeById(id);
         return new ResponseEntity<>(employee, HttpStatus.OK);
     }
 
