@@ -45,6 +45,11 @@ public class SecurityConfig {
                 // Define authorization rules for endpoints
                 .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/error").permitAll()
+                .requestMatchers(
+                        "/v3/api-docs/**", // The raw OpenAPI JSON/YAML endpoint
+                        "/swagger-ui.html", // The main Swagger UI page
+                        "/swagger-ui/**" // All static resources (CSS, JS)
+                ).permitAll()
                 .requestMatchers("/api/v1/auth/**").permitAll() // Login endpoint is public
                 .requestMatchers("/api/v1/employees/**").authenticated() // Employee endpoints require authentication
                 .anyRequest().authenticated()

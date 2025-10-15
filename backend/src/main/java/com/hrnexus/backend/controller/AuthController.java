@@ -7,6 +7,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -57,11 +58,12 @@ public class AuthController {
     /**
      * Authenticates a user and returns a JWT token.
      *
-     * @param loginRequest the username and password provided by the user
+     * @param loginRequest the username and password provided by the user (as
+     * form data)
      * @return a ResponseEntity containing the JWT token
      */
     @PostMapping("/login")
-    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> authenticateUser(@Valid @ModelAttribute LoginRequest loginRequest) {
         // Authenticate the user with Spring Security's AuthenticationManager
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -69,7 +71,7 @@ public class AuthController {
                         loginRequest.getPassword()));
 
         // Load the full UserDetails for token generation
-        UserDetails userDetails = customUserDetailsService.loadUserByUsername(loginRequest.getUsername());
+        UserDetails userDetails = (UserDetails) authentication.getPrincipal();
 
         String jwt = jwtTokenProvider.generateToken(userDetails);
 
