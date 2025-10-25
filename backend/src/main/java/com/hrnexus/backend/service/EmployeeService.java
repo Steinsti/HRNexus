@@ -1,61 +1,50 @@
 package com.hrnexus.backend.service;
 
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
-import com.hrnexus.backend.model.Employee;
 import com.hrnexus.backend.payload.request.EmployeeRequest;
-import com.hrnexus.backend.payload.request.EmployeeUpdateRequest;
+import com.hrnexus.backend.payload.response.EmployeeResponse;
 
-/**
- * Interface defining the contract for Employee business logic operations. This
- * separation ensures decoupling and simplifies testing.
- */
 public interface EmployeeService {
 
     /**
-     * Creates and saves a new employee based on the request DTO.
+     * Creates a new employee.
      *
-     * @param request The employee data transfer object.
-     * @return The saved Employee entity.
+     * @param request DTO carrying employee registration data
+     * @return EmployeeResponseDTO
      */
-    Employee createEmployee(EmployeeRequest request);
+    EmployeeResponse createEmployee(EmployeeRequest request);
 
     /**
-     * Updates an existing employee by their internal primary key ID.
+     * Updates an existing employee by ID.
      *
-     * @param id The primary key ID of the employee to update.
-     * @param request The updated employee data transfer object.
-     * @return The saved (updated) Employee entity.
+     * @param id employee DB ID
+     * @param request DTO carrying updated employee info
+     * @return updated EmployeeResponse
      */
-    Employee updateEmployee(Long id, EmployeeUpdateRequest request);
+    EmployeeResponse updateEmployee(Long id, EmployeeRequest request);
 
     /**
-     * Retrieves all employees from the database.
+     * Retrieves paginated employees list.
      *
-     * @return A list of all Employee entities.
+     * @param pageable page number + size + sort
+     * @return Page of EmployeeResponse
      */
-    List<Employee> getAllEmployees();
+    Page<EmployeeResponse> getAllEmployees(Pageable pageable);
 
     /**
-     * Retrieves a single employee by their ID card number.
-     *
-     * @param idCardNo The ID card number of the employee to retrieve.
-     * @return The Employee entity.
+     * Retrieves an employee by internal ID.
      */
-    Employee getEmployeeByIdCardNo(String idCardNo);
+    EmployeeResponse getEmployeeById(Long id);
 
     /**
-     * Retrieves a single employee by their internal database ID.
-     *
-     * @param id The primary key ID of the employee.
-     * @return The Employee entity.
+     * Retrieves an employee by ID card number.
      */
-    Employee getEmployeeById(Long id);
+    EmployeeResponse getEmployeeByIdCardNo(String idCardNo);
 
     /**
-     * Deletes an employee by their internal primary key ID.
-     *
-     * @param id The primary key ID of the employee to delete.
+     * Deletes an employee.
      */
     void deleteEmployee(Long id);
 }

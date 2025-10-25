@@ -15,6 +15,7 @@ import com.hrnexus.backend.payload.request.DepartmentRequest;
 import com.hrnexus.backend.payload.request.JobTitleRequest;
 import com.hrnexus.backend.payload.response.DepartmentResponse;
 import com.hrnexus.backend.payload.response.JobTitleResponse;
+import static com.hrnexus.backend.security.util.SecurityRoles.HR_OR_ADMIN;
 import com.hrnexus.backend.service.DepartmentService;
 import com.hrnexus.backend.service.JobTitleService;
 
@@ -40,7 +41,7 @@ public class AdminDataController {
      * @return The created DepartmentResponse.
      */
     @PostMapping("/departments")
-    @PreAuthorize("hasRole('HR_MANAGER')")
+    @PreAuthorize(HR_OR_ADMIN)
     public ResponseEntity<DepartmentResponse> createDepartment(@Valid @RequestBody DepartmentRequest request) {
         DepartmentResponse response = departmentService.createDepartment(request);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
@@ -52,7 +53,7 @@ public class AdminDataController {
      * @return A list of DepartmentResponse objects.
      */
     @GetMapping("/departments")
-    @PreAuthorize("hasRole('HR_MANAGER')")
+    @PreAuthorize(HR_OR_ADMIN)
     public ResponseEntity<List<DepartmentResponse>> listAllDepartments() {
         List<DepartmentResponse> departments = departmentService.findAllDepartments();
         return ResponseEntity.ok(departments);
@@ -65,7 +66,7 @@ public class AdminDataController {
      * @return The created JobTitleResponse.
      */
     @PostMapping("/jobtitles")
-    @PreAuthorize("hasRole('HR_MANAGER')")
+    @PreAuthorize(HR_OR_ADMIN)
     public ResponseEntity<JobTitleResponse> createJobTitle(@Valid @RequestBody JobTitleRequest request) {
         JobTitleResponse response = jobTitleService.createJobTitle(request);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
@@ -77,7 +78,7 @@ public class AdminDataController {
      * @return A list of JobTitleResponse objects.
      */
     @GetMapping("/jobtitles")
-    @PreAuthorize("hasRole('HR_MANAGER')")
+    @PreAuthorize(HR_OR_ADMIN)
     public ResponseEntity<List<JobTitleResponse>> listAllJobTitles() {
         List<JobTitleResponse> jobTitles = jobTitleService.findAllJobTitles();
         return ResponseEntity.ok(jobTitles);
