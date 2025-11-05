@@ -1,6 +1,10 @@
 package com.hrnexus.backend.controller;
 
+import java.util.Map;
+
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -17,13 +21,13 @@ import com.hrnexus.backend.enums.Roles;
 import com.hrnexus.backend.model.User;
 import com.hrnexus.backend.payload.request.LoginRequest;
 import com.hrnexus.backend.payload.request.RegisterRequest;
-import com.hrnexus.backend.payload.response.JwtResponse;
 import com.hrnexus.backend.payload.response.RegisterResponse;
 import com.hrnexus.backend.repository.EmployeeRepository;
 import com.hrnexus.backend.repository.UserRepository;
 import com.hrnexus.backend.security.util.JwtTokenProvider;
 import com.hrnexus.backend.service.CustomUserDetailsService;
 
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 
 /**
@@ -63,7 +67,7 @@ public class AuthController {
      * @return a ResponseEntity containing the JWT token
      */
     @PostMapping("/login")
-    public ResponseEntity<?> authenticateUser(@Valid @ModelAttribute LoginRequest loginRequest) {
+    public ResponseEntity<?> authenticateUser(@Valid @ModelAttribute LoginRequest loginRequest, HttpServletResponse response) {
         // Authenticate the user with Spring Security's AuthenticationManager
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -75,8 +79,21 @@ public class AuthController {
 
         String jwt = jwtTokenProvider.generateToken(userDetails);
 
+        ResponseCookie cookie = ResponseCookie.from("HRNEXUS-JWT", jwt)
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(jwtTokenProvider.getExpiration())
+                .sameSite("Lax")
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+
         // Return the token in a custom response object
-        return ResponseEntity.ok(new JwtResponse(jwt));
+        return ResponseEntity.ok(Map.of(
+                "message", "Login successful",
+                "tokenSetInCookie", true
+        ));
     }
 
     /**

@@ -162,7 +162,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional(readOnly = true)
     public EmployeeResponse getEmployeeById(Long id) {
         Employee employee = employeeRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Employee not found: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Employee with id: " + id + " not found"));
         return employeeMapper.toDto(employee);
     }
 

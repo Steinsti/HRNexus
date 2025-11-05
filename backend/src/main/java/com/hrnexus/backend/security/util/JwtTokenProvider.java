@@ -1,5 +1,6 @@
 package com.hrnexus.backend.security.util;
 
+import java.time.Duration;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -219,5 +220,26 @@ public class JwtTokenProvider {
             logger.error("Failed to decode JWT secret key", e);
             throw new IllegalStateException("Invalid JWT secret configuration", e);
         }
+    }
+
+    public Duration getExpiration() {
+        // Return the configured expiration (seconds). Fallback to 1 hour (3600s) if not set.
+        return Duration.ofSeconds(expiration > 0 ? expiration : 3600L);
+    }
+
+    public String getUsernameFromToken(String jwt) {
+        // Return the subject (username) from the provided JWT
+        return getSubjectFromToken(jwt);
+    }
+
+    public List<String> getClaimFromToken(String jwt) {
+        Claims claims = getAllClaimsFromToken(jwt);
+        Object rolesObj = claims.get(ROLES_CLAIM);
+        if (rolesObj instanceof List<?>) {
+            return ((List<?>) rolesObj).stream()
+                    .map(Object::toString)
+                    .collect(Collectors.toList());
+        }
+        return List.of();
     }
 }

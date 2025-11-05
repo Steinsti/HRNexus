@@ -36,6 +36,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                .cors(cors -> {
+                })
                 // Disable CSRF for stateless REST APIs
                 .csrf(csrf -> csrf.disable())
                 // Set the custom entry point to handle 401 Unauthorized errors
