@@ -3,6 +3,8 @@ package com.hrnexus.backend.payload.request;
 import java.time.LocalDate;
 import java.util.UUID;
 
+import com.hrnexus.backend.enums.EmploymentStatus;
+
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -47,8 +49,8 @@ public class EmployeeRequest {
 
     private Long managerId;
 
-    @NotBlank(message = "Employment status is required")
-    private String employmentStatus;
+    @NotNull(message = "Employment status is required")
+    private EmploymentStatus employmentStatus;
 
     @NotNull(message = "Hire date is required")
     @PastOrPresent(message = "Hire date cannot be in the future")

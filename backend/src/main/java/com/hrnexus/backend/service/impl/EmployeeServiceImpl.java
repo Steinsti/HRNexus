@@ -1,7 +1,5 @@
 package com.hrnexus.backend.service.impl;
 
-import java.util.Locale;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -62,10 +60,8 @@ public class EmployeeServiceImpl implements EmployeeService {
             manager = employeeRepository.findById(request.getManagerId())
                     .orElseThrow(() -> new ResourceNotFoundException("Manager not found: " + request.getManagerId()));
         }
-        EmploymentStatus status;
-        try {
-            status = EmploymentStatus.valueOf(request.getEmploymentStatus().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
+        EmploymentStatus status = request.getEmploymentStatus();
+        if (status == null) {
             throw new ResourceNotFoundException("Invalid employment status: " + request.getEmploymentStatus());
         }
 
@@ -109,14 +105,13 @@ public class EmployeeServiceImpl implements EmployeeService {
         }
         if (request.getEmploymentStatus() != null) {
             try {
-                EmploymentStatus status = EmploymentStatus.valueOf(request.getEmploymentStatus().toUpperCase(Locale.ROOT));
-                existing.setEmploymentStatus(status);
-            } catch (IllegalArgumentException ex) {
-                throw new ResourceNotFoundException("Invalid employment status: " + request.getEmploymentStatus());
+                if (request.getEmploymentStatus() != null) {
+                    existing.setEmploymentStatus(request.getEmploymentStatus());
+                }
+            } finally {
+                // No cleanup needed, but block is required for syntax
             }
         }
-
-        // Department change
         if (request.getDepartmentId() != null && !request.getDepartmentId().equals(existing.getDepartment().getId())) {
             Department dept = departmentRepository.findById(request.getDepartmentId())
                     .orElseThrow(() -> new ResourceNotFoundException("Department not found: " + request.getDepartmentId()));

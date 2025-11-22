@@ -24,7 +24,7 @@ import com.hrnexus.backend.service.impl.EmployeeServiceImpl;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/api/employees")
+@RequestMapping("/api/v1/employees")
 public class EmployeeController {
 
     private final EmployeeServiceImpl employeeServiceImpl;

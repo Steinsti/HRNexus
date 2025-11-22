@@ -235,8 +235,8 @@ public class JwtTokenProvider {
     public List<String> getClaimFromToken(String jwt) {
         Claims claims = getAllClaimsFromToken(jwt);
         Object rolesObj = claims.get(ROLES_CLAIM);
-        if (rolesObj instanceof List<?>) {
-            return ((List<?>) rolesObj).stream()
+        if (rolesObj instanceof List<?> rolesList) {
+            return rolesList.stream()
                     .map(Object::toString)
                     .collect(Collectors.toList());
         }

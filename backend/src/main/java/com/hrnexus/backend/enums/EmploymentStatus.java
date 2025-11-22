@@ -5,5 +5,4 @@ public enum EmploymentStatus {
     ON_LEAVE,
     TERMINATED,
     SUSPENDED,
-    CONTRACTOR;
 }
