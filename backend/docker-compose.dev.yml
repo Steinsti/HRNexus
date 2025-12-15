@@ -1,0 +1,61 @@
+# docker-compose.dev.yml
+
+services:
+  postgres:
+    container_name: postgres-container
+    image: postgres:16.4-alpine
+    hostname: localhost
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1337x.to
+      POSTGRES_DB: cas_sacco
+    volumes:
+      - postgres_postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  pgadmin:
+    container_name: pgadmin-container
+    image: dpage/pgadmin4:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: 1337x.to
+    restart: unless-stopped
+
+  hrnexus-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: hrnexus_backend_dev
+    ports:
+      - "8080:8080"
+      - "5005:5005"   # remote debugging
+    volumes:
+      - ./target/classes:/app/target/classes:delegated
+      - ./src:/app/src:ro
+      - ~/.m2:/root/.m2
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    tty: true
+
+volumes:
+  postgres_postgres-data:
+    external: true

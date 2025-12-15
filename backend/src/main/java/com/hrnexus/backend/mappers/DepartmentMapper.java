@@ -14,9 +14,9 @@ public class DepartmentMapper {
         }
 
         return DepartmentResponse.builder()
-                // .id(department.getId())
+                .id(department.getId())
                 .departmentName(department.getDepartmentName())
-                // .departmentCode(department.getDepartmentCode())
+                .departmentCode(department.getDepartmentCode())
                 .build();
     }
 }

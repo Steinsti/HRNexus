@@ -1,0 +1,31 @@
+# ================================
+# HRNexus Backend — Development
+# ================================
+
+# Build stage
+FROM eclipse-temurin:21-jdk AS build
+WORKDIR /app
+
+COPY pom.xml mvnw ./
+COPY .mvn .mvn
+RUN chmod +x mvnw
+RUN ./mvnw dependency:go-offline -B
+
+COPY src ./src
+RUN ./mvnw clean package -DskipTests -B
+
+# Runtime stage
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+
+# Non-root user for security
+RUN addgroup -S spring && adduser -S spring -G spring
+COPY --from=build --chown=spring:spring /app/target/*.jar app.jar
+
+USER spring
+EXPOSE 8080 5005
+
+# Enable remote debugging (connect from IDE on port 5005)
+CMD ["java", \
+    "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005", \
+    "-jar", "app.jar"]

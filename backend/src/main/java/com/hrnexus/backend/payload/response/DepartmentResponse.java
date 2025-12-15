@@ -8,7 +8,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * DTO for sending Department details (ID and Name) to the client.
+ * DTO for sending Department details (ID, Name and department code) to the
+ * client.
  */
 @Data
 @Builder
@@ -18,7 +19,7 @@ public class DepartmentResponse {
 
     private UUID id;
 
-    private String departmentName;
-
     private String departmentCode;
+
+    private String departmentName;
 }
